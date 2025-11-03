@@ -21,6 +21,8 @@ class PrefsService {
   static const _journalEntriesKey = 'journal_entries';
   static const _searchFiltersKey = 'search_filters';
   static const _searchHistoryKey = 'search_history';
+  static const _compareSelectedCarsKey = 'compare_selected_cars';
+  static const _compareFiltersKey = 'compare_filters';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -217,5 +219,38 @@ class PrefsService {
 
   Future<void> clearSearchHistory() async {
     await _prefs.remove(_searchHistoryKey);
+  }
+
+  List<String> loadCompareSelectedCars() {
+    return _prefs.getStringList(_compareSelectedCarsKey) ?? <String>[];
+  }
+
+  Future<void> saveCompareSelectedCars(List<String> ids) async {
+    await _prefs.setStringList(_compareSelectedCarsKey, ids);
+  }
+
+  Map<String, dynamic>? loadCompareFilters() {
+    final jsonString = _prefs.getString(_compareFiltersKey);
+    if (jsonString == null || jsonString.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = json.decode(jsonString);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return decoded.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<void> saveCompareFilters(Map<String, dynamic> map) async {
+    await _prefs.setString(_compareFiltersKey, json.encode(map));
   }
 }
