@@ -13,6 +13,7 @@ class PrefsService {
   static const _localeKey = 'locale_code';
   static const _hasOnboardedKey = 'has_onboarded';
   static const _guestModeKey = 'auth_guest';
+  static const _coachMarksKey = 'has_seen_coach_marks';
   static const _planDestinationKey = 'plan_destination';
   static const _planWeekdaysKey = 'plan_weekdays';
   static const _planBudgetMinKey = 'plan_budget_min';
@@ -90,6 +91,14 @@ class PrefsService {
     if (_guestModeKey != 'guest_mode') {
       await _prefs.remove('guest_mode');
     }
+  }
+
+  bool loadHasSeenCoachMarks() {
+    return _prefs.getBool(_coachMarksKey) ?? false;
+  }
+
+  Future<void> saveHasSeenCoachMarks(bool value) async {
+    await _prefs.setBool(_coachMarksKey, value);
   }
 
   String? loadPlanDestination() {

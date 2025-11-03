@@ -19,6 +19,7 @@ class AppController extends ChangeNotifier {
   bool _hasOnboarded = false;
   bool _isGuest = false;
   Set<String> _savedPlaceIds = <String>{};
+  bool _hasSeenCoachMarks = false;
 
   ThemeMode get themeMode => _themeMode;
   Color get primaryColor => _primaryColor;
@@ -26,6 +27,7 @@ class AppController extends ChangeNotifier {
   bool get hasOnboarded => _hasOnboarded;
   bool get isGuest => _isGuest;
   Set<String> get savedPlaceIds => _savedPlaceIds;
+  bool get hasSeenCoachMarks => _hasSeenCoachMarks;
 
   PrefsService get prefsService => _prefsService;
 
@@ -38,6 +40,7 @@ class AppController extends ChangeNotifier {
     _hasOnboarded = _prefsService.loadHasOnboarded();
     _isGuest = _prefsService.loadGuestMode();
     _savedPlaceIds = _prefsService.loadSavedPlaceIds();
+    _hasSeenCoachMarks = _prefsService.loadHasSeenCoachMarks();
     notifyListeners();
   }
 
@@ -88,6 +91,15 @@ class AppController extends ChangeNotifier {
     }
     _isGuest = value;
     await _prefsService.saveGuestMode(value);
+    notifyListeners();
+  }
+
+  Future<void> setCoachMarksSeen(bool value) async {
+    if (_hasSeenCoachMarks == value) {
+      return;
+    }
+    _hasSeenCoachMarks = value;
+    await _prefsService.saveHasSeenCoachMarks(value);
     notifyListeners();
   }
 

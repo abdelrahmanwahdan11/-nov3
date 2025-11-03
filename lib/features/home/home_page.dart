@@ -2,13 +2,19 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flip_card/flip_card.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
+import 'package:travelmate/core/controllers/app_controller.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/theme/theme.dart';
 import 'package:travelmate/core/utils/pagination_mixin.dart';
 import 'package:travelmate/core/utils/skeleton.dart';
+import 'package:travelmate/core/widgets/atoms/staggered_slide_fade.dart';
 import 'package:travelmate/features/home/explore_mock_data.dart';
+import 'package:travelmate/features/home/widgets/explore_three_d_card.dart';
 import 'package:travelmate/features/place/models/explore_place.dart';
+import 'package:travelmate/features/search/search_models.dart';
+import 'package:travelmate/features/search/widgets/search_filter_sheet.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,6 +29,20 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   final List<ExplorePlace> _visiblePlaces = <ExplorePlace>[];
   String _selectedCategory = _categories.first;
   bool _isInitialLoading = true;
+  SearchFilters _filters = const SearchFilters();
+  TutorialCoachMark? _coachMark;
+  bool _tutorialQueued = false;
+
+  final GlobalKey _searchActionKey = GlobalKey();
+  final GlobalKey _filterButtonKey = GlobalKey();
+  final GlobalKey _placeCardKey = GlobalKey();
+  final GlobalKey _generateCardKey = GlobalKey();
+  final GlobalKey _themeToggleKey = GlobalKey();
+
+  static final Map<String, int> _placeOrder = <String, int>{
+    for (var i = 0; i < ExploreMockData.places.length; i++)
+      ExploreMockData.places[i].id: i,
+  };
 
   @override
   int get pageSize => 4;
@@ -30,14 +50,55 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      loadInitial();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final controller = AppControllerScope.of(context);
+      final storedFilters = SearchFilters.fromMap(
+        controller.prefsService.loadSearchFilters(),
+      );
+      if (mounted) {
+        setState(() {
+          _filters = storedFilters;
+        });
+      }
+      await loadInitial();
     });
   }
 
-  List<ExplorePlace> get _filteredPlaces => ExploreMockData.places
-      .where((place) => place.category == _selectedCategory)
-      .toList();
+  List<ExplorePlace> get _filteredPlaces {
+    final filtered = ExploreMockData.places.where((place) {
+      if (place.category != _selectedCategory) {
+        return false;
+      }
+      if (!_filters.scopes.contains(_scopeForCategory(place.category))) {
+        return false;
+      }
+      if (place.rating < _filters.minRating) {
+        return false;
+      }
+      final distance = _parseDistance(place);
+      if (distance > _filters.maxDistance) {
+        return false;
+      }
+      final price = _estimatePrice(place);
+      if (price < _filters.priceRange.start ||
+          price > _filters.priceRange.end) {
+        return false;
+      }
+      return true;
+    }).toList();
+    filtered.sort(_sortPlaces);
+    return filtered;
+  }
+
+  bool get _hasActiveFilters {
+    const defaults = SearchFilters();
+    return _filters.priceRange.start != defaults.priceRange.start ||
+        _filters.priceRange.end != defaults.priceRange.end ||
+        _filters.maxDistance != defaults.maxDistance ||
+        _filters.minRating != defaults.minRating ||
+        !_filters.showsAllScopes ||
+        _filters.sort != defaults.sort;
+  }
 
   List<ExplorePlace> get _aiRoutePlaces =>
       ExploreMockData.places.where((place) => place.isAiCurated).toList();
@@ -73,6 +134,9 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       hasMore = filtered.length > pageSize;
       page = 1;
       _isInitialLoading = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTutorial();
     });
   }
 
@@ -126,6 +190,22 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
     }
   }
 
+  Future<void> _openFilters(AppLocalizations localizations) async {
+    final controller = AppControllerScope.of(context);
+    final result = await showModalBottomSheet<SearchFilters>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SearchFilterSheet(initialFilters: _filters),
+    );
+    if (result != null) {
+      setState(() {
+        _filters = result;
+      });
+      await controller.prefsService.saveSearchFilters(result.toMap());
+      refresh();
+    }
+  }
+
   void _openPlace(ExplorePlace place) {
     Navigator.of(context).pushNamed('/place', arguments: place);
   }
@@ -134,6 +214,7 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final appController = AppControllerScope.of(context);
 
     final heroPlace = _heroPlace;
     final remainingPlaces = heroPlace == null
@@ -145,9 +226,16 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
         title: Text(localizations.translate('homeTitle')),
         actions: [
           IconButton(
+            key: _searchActionKey,
             icon: const Icon(Icons.search),
             onPressed: () => _openSearch(localizations),
             tooltip: localizations.translate('homeSearchTooltip'),
+          ),
+          IconButton(
+            key: _themeToggleKey,
+            icon: Icon(_themeIconFor(appController.themeMode)),
+            onPressed: () => _cycleTheme(appController),
+            tooltip: localizations.translate('homeThemeToggleTooltip'),
           ),
         ],
       ),
@@ -173,6 +261,15 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
                       const Skeleton(height: 220, borderRadius: 28)
                     else if (heroPlace != null)
                       _buildHeroCard(heroPlace, theme, localizations),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      height: 260,
+                      child: _isInitialLoading
+                          ? const Skeleton(height: 260, borderRadius: 28)
+                          : const ExploreThreeDCard(),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildPlanCta(theme, localizations),
                     const SizedBox(height: 32),
                     _buildSectionHeader(
                       localizations.translate('sectionAiRoute'),
@@ -231,25 +328,40 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   }
 
   Widget _buildSearchBar(ThemeData theme, AppLocalizations localizations) {
-    return GestureDetector(
-      onTap: () => _openSearch(localizations),
-      child: GlassSurface(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            Icon(Icons.search, color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                localizations.translate('homeSearchHint'),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+    final hintStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurface.withOpacity(0.6),
+    );
+    final hasFilters = _hasActiveFilters;
+    final filterColor = hasFilters
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface.withOpacity(0.6);
+    return GlassSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.search, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: InkWell(
+              onTap: () => _openSearch(localizations),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  localizations.translate('homeSearchHint'),
+                  style: hintStyle,
                 ),
               ),
             ),
-            Icon(Icons.tune, color: theme.colorScheme.onSurface.withOpacity(0.6)),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            key: _filterButtonKey,
+            onPressed: () => _openFilters(localizations),
+            tooltip: localizations.translate('homeFilterTooltip'),
+            icon: Icon(Icons.tune_rounded, color: filterColor),
+          ),
+        ],
       ),
     );
   }
@@ -279,13 +391,15 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
     ThemeData theme,
     AppLocalizations localizations,
   ) {
-    return GestureDetector(
-      onTap: () => _openPlace(place),
-      child: Hero(
-        tag: place.id,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
+    return KeyedSubtree(
+      key: _placeCardKey,
+      child: GestureDetector(
+        onTap: () => _openPlace(place),
+        child: Hero(
+          tag: place.id,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Stack(
             children: [
               Positioned.fill(
                 child: Image.network(
@@ -360,6 +474,34 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
     );
   }
 
+  Widget _buildPlanCta(ThemeData theme, AppLocalizations localizations) {
+    return GlassSurface(
+      key: _generateCardKey,
+      radius: 24,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            localizations.translate('homePlanCtaTitle'),
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            localizations.translate('homePlanCtaSubtitle'),
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pushNamed('/plan'),
+            icon: const Icon(Icons.auto_awesome_rounded),
+            label: Text(localizations.translate('homePlanCtaButton')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, ThemeData theme) {
     return Text(
       title,
@@ -381,42 +523,45 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       scrollDirection: Axis.horizontal,
       itemBuilder: (context, index) {
         final place = places[index];
-        return SizedBox(
-          width: 220,
-          child: GlassSurface(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      place.imageUrl,
-                      fit: BoxFit.cover,
+        return StaggeredSlideFade(
+          index: index,
+          child: SizedBox(
+            width: 220,
+            child: GlassSurface(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        place.imageUrl,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  place.title,
-                  style: theme.textTheme.bodyLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  place.subtitle,
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => _openPlace(place),
-                  child: Text(localizations.translate('homeViewPlace')),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    place.title,
+                    style: theme.textTheme.bodyLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    place.subtitle,
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => _openPlace(place),
+                    child: Text(localizations.translate('homeViewPlace')),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -440,65 +585,68 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       scrollDirection: Axis.horizontal,
       itemBuilder: (context, index) {
         final place = gems[index];
-        return SizedBox(
-          width: 200,
-          child: FlipCard(
-            direction: FlipDirection.HORIZONTAL,
-            front: GlassSurface(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        place.imageUrl,
-                        fit: BoxFit.cover,
+        return StaggeredSlideFade(
+          index: index,
+          child: SizedBox(
+            width: 200,
+            child: FlipCard(
+              direction: FlipDirection.HORIZONTAL,
+              front: GlassSurface(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          place.imageUrl,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    place.title,
-                    style: theme.textTheme.bodyLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    place.location,
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      place.title,
+                      style: theme.textTheme.bodyLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      place.location,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            back: GlassSurface(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    localizations.translate('homeHiddenGemInsight'),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Text(
-                      place.description,
+              back: GlassSurface(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      localizations.translate('homeHiddenGemInsight'),
                       style: theme.textTheme.bodySmall,
                     ),
-                  ),
-                  Align(
-                    alignment: AlignmentDirectional.bottomEnd,
-                    child: TextButton(
-                      onPressed: () => _openPlace(place),
-                      child: Text(localizations.translate('homeViewPlace')),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Text(
+                        place.description,
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
-                  ),
-                ],
+                    Align(
+                      alignment: AlignmentDirectional.bottomEnd,
+                      child: TextButton(
+                        onPressed: () => _openPlace(place),
+                        child: Text(localizations.translate('homeViewPlace')),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -521,76 +669,79 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
             return _buildLoadMoreIndicator();
           }
           final place = places[index];
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: () => _openPlace(place),
-              child: GlassSurface(
-                radius: 24,
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Hero(
-                      tag: place.id,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          place.imageUrl,
-                          width: 96,
-                          height: 96,
-                          fit: BoxFit.cover,
+          return StaggeredSlideFade(
+            index: index,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => _openPlace(place),
+                child: GlassSurface(
+                  radius: 24,
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Hero(
+                        tag: place.id,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Image.network(
+                            place.imageUrl,
+                            width: 96,
+                            height: 96,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            place.title,
-                            style: theme.textTheme.bodyLarge,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            place.subtitle,
-                            style: theme.textTheme.bodySmall,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.place,
-                                  size: 18,
-                                  color: theme.colorScheme.primary),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  '${place.location} · ${place.distanceText}',
-                                  style: theme.textTheme.bodySmall,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              place.title,
+                              style: theme.textTheme.bodyLarge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              place.subtitle,
+                              style: theme.textTheme.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.place,
+                                    size: 18,
+                                    color: theme.colorScheme.primary),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    '${place.location} · ${place.distanceText}',
+                                    style: theme.textTheme.bodySmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Icon(Icons.star, color: theme.colorScheme.primary),
+                          Text(place.rating.toStringAsFixed(1)),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Icon(Icons.star, color: theme.colorScheme.primary),
-                        Text(place.rating.toStringAsFixed(1)),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -652,6 +803,200 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       default:
         return 'categoryMustSee';
     }
+  }
+
+  SearchScope _scopeForCategory(String category) {
+    switch (category) {
+      case 'Food & Café':
+        return SearchScope.food;
+      default:
+        return SearchScope.places;
+    }
+  }
+
+  double _parseDistance(ExplorePlace place) {
+    final value = double.tryParse(place.distanceText.split(' ').first);
+    return value ?? 12;
+  }
+
+  double _estimatePrice(ExplorePlace place) {
+    final random = math.Random(place.id.hashCode);
+    final base = place.category == 'Food & Café' ? 65 : 140;
+    final estimated = base + _parseDistance(place) * random.nextDouble() * 8;
+    final clamped = estimated.clamp(40, 1600);
+    return clamped is double ? clamped : (clamped as num).toDouble();
+  }
+
+  int _sortPlaces(ExplorePlace a, ExplorePlace b) {
+    switch (_filters.sort) {
+      case SearchSort.nearest:
+        return _parseDistance(a).compareTo(_parseDistance(b));
+      case SearchSort.highestRated:
+        return b.rating.compareTo(a.rating);
+      case SearchSort.lowestPrice:
+        return _estimatePrice(a).compareTo(_estimatePrice(b));
+      case SearchSort.newest:
+      default:
+        final orderA = _placeOrder[a.id] ?? 0;
+        final orderB = _placeOrder[b.id] ?? 0;
+        return orderB.compareTo(orderA);
+    }
+  }
+
+  void _cycleTheme(AppController controller) {
+    ThemeMode nextMode;
+    switch (controller.themeMode) {
+      case ThemeMode.system:
+        nextMode = ThemeMode.light;
+        break;
+      case ThemeMode.light:
+        nextMode = ThemeMode.dark;
+        break;
+      case ThemeMode.dark:
+        nextMode = ThemeMode.system;
+        break;
+    }
+    controller.updateThemeMode(nextMode);
+  }
+
+  IconData _themeIconFor(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return Icons.brightness_auto_rounded;
+      case ThemeMode.light:
+        return Icons.wb_sunny_rounded;
+      case ThemeMode.dark:
+        return Icons.nights_stay_rounded;
+    }
+  }
+
+  void _maybeShowTutorial() {
+    if (!mounted || _tutorialQueued || _isInitialLoading) {
+      return;
+    }
+    final controller = AppControllerScope.of(context);
+    if (controller.hasSeenCoachMarks) {
+      _tutorialQueued = true;
+      return;
+    }
+    if (_searchActionKey.currentContext == null ||
+        _filterButtonKey.currentContext == null ||
+        _placeCardKey.currentContext == null ||
+        _generateCardKey.currentContext == null ||
+        _themeToggleKey.currentContext == null) {
+      Future.delayed(const Duration(milliseconds: 300), _maybeShowTutorial);
+      return;
+    }
+    final localizations = AppLocalizations.of(context);
+    final targets = _buildCoachTargets(localizations);
+    _tutorialQueued = true;
+    _coachMark = TutorialCoachMark(
+      targets: targets,
+      colorShadow: Colors.black87,
+      opacityShadow: 0.7,
+      textSkip: localizations.translate('tutorialSkip'),
+      onFinish: () => controller.setCoachMarksSeen(true),
+      onSkip: () => controller.setCoachMarksSeen(true),
+    )..show(context: context);
+  }
+
+  List<TargetFocus> _buildCoachTargets(AppLocalizations localizations) {
+    return [
+      _coachTarget(
+        id: 'search',
+        key: _searchActionKey,
+        title: localizations.translate('tutorialSearchTitle'),
+        description: localizations.translate('tutorialSearchDescription'),
+        align: ContentAlign.bottom,
+        shape: ShapeLightFocus.circle,
+      ),
+      _coachTarget(
+        id: 'filter',
+        key: _filterButtonKey,
+        title: localizations.translate('tutorialFilterTitle'),
+        description: localizations.translate('tutorialFilterDescription'),
+        align: ContentAlign.top,
+        shape: ShapeLightFocus.circle,
+      ),
+      _coachTarget(
+        id: 'place-card',
+        key: _placeCardKey,
+        title: localizations.translate('tutorialPlaceCardTitle'),
+        description: localizations.translate('tutorialPlaceCardDescription'),
+        align: ContentAlign.top,
+      ),
+      _coachTarget(
+        id: 'plan',
+        key: _generateCardKey,
+        title: localizations.translate('tutorialGenerateTitle'),
+        description: localizations.translate('tutorialGenerateDescription'),
+        align: ContentAlign.top,
+      ),
+      _coachTarget(
+        id: 'theme',
+        key: _themeToggleKey,
+        title: localizations.translate('tutorialNightTitle'),
+        description: localizations.translate('tutorialNightDescription'),
+        align: ContentAlign.bottom,
+        shape: ShapeLightFocus.circle,
+      ),
+    ];
+  }
+
+  TargetFocus _coachTarget({
+    required String id,
+    required GlobalKey key,
+    required String title,
+    required String description,
+    ContentAlign align = ContentAlign.bottom,
+    ShapeLightFocus shape = ShapeLightFocus.roundedRect,
+  }) {
+    final theme = Theme.of(context);
+    return TargetFocus(
+      identify: id,
+      keyTarget: key,
+      shape: shape,
+      radius: shape == ShapeLightFocus.circle ? 44 : 18,
+      contents: [
+        TargetContent(
+          align: align,
+          child: _buildCoachContent(theme, title, description),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCoachContent(ThemeData theme, String title, String description) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
   }
 }
 
