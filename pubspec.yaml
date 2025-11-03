@@ -1,0 +1,32 @@
+name: travelmate
+description: A travel companion app with customizable theming and localization.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+  shared_preferences: ^2.2.2
+  iconly: ^1.0.0
+  flutter_3d_controller: ^2.0.0
+  animations: ^2.0.8
+  tutorial_coach_mark: ^1.2.7
+  flip_card: ^0.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/translations/
