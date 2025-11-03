@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/prefs/prefs_service.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/utils/skeleton.dart';
 import 'package:travelmate/features/home/explore_mock_data.dart';
 import 'package:travelmate/features/place/models/explore_place.dart';
 
@@ -76,56 +77,82 @@ class _CatalogPageState extends State<CatalogPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSummary(theme, localizations),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ValueListenableBuilder<List<SearchEntry>>(
-                      valueListenable: _resultsNotifier,
-                      builder: (context, results, _) {
-                        if (results.isEmpty) {
-                          return Center(
-                            child: GlassSurface(
-                              padding: const EdgeInsets.all(24),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Text(
-                                localizations.translate('catalogEmptyState'),
-                                style: theme.textTheme.titleMedium,
-                                textAlign: TextAlign.center,
+          ? _buildLoadingSkeleton()
+          : ValueListenableBuilder<List<SearchEntry>>(
+              valueListenable: _resultsNotifier,
+              builder: (context, results, _) {
+                final grouped = SearchRepository.groupByScope(results);
+                final scopes = grouped.keys.toList();
+                return RefreshIndicator(
+                  onRefresh: _handleRefresh,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    slivers: [
+                      SliverPadding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSummary(theme, localizations, results),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (scopes.isEmpty)
+                        SliverPadding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                          sliver: SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: GlassSurface(
+                                padding: const EdgeInsets.all(24),
+                                borderRadius: BorderRadius.circular(24),
+                                child: Text(
+                                  localizations.translate('catalogEmptyState'),
+                                  style: theme.textTheme.titleMedium,
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             ),
-                          );
-                        }
-                        final grouped = SearchRepository.groupByScope(results);
-                        final scopes = grouped.keys.toList();
-                        return ListView.builder(
-                          itemCount: scopes.length,
-                          itemBuilder: (context, index) {
-                            final scope = scopes[index];
-                            final items = grouped[scope]!;
-                            return _ScopeSection(
-                              scope: scope,
-                              items: items,
-                              localizations: localizations,
-                              onTap: _openEntry,
-                            );
-                          },
-                        );
-                      },
-                    ),
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final scope = scopes[index];
+                                final items = grouped[scope]!;
+                                return _ScopeSection(
+                                  scope: scope,
+                                  items: items,
+                                  localizations: localizations,
+                                  onTap: _openEntry,
+                                );
+                              },
+                              childCount: scopes.length,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
     );
   }
 
-  Widget _buildSummary(ThemeData theme, AppLocalizations localizations) {
+  Widget _buildSummary(
+    ThemeData theme,
+    AppLocalizations localizations,
+    List<SearchEntry> results,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,7 +168,7 @@ class _CatalogPageState extends State<CatalogPage> {
             Chip(
               label: Text(
                 '${localizations.translate('searchResultsLabel')}: '
-                '${_resultsNotifier.value.length}',
+                '${results.length}',
               ),
             ),
             for (final scope in _filters.scopes)
@@ -157,6 +184,45 @@ class _CatalogPageState extends State<CatalogPage> {
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      children: [
+        const Skeleton(width: 200, height: 28, borderRadius: 20),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: const [
+            Skeleton(width: 140, height: 32, borderRadius: 16),
+            Skeleton(width: 120, height: 32, borderRadius: 16),
+            Skeleton(width: 100, height: 32, borderRadius: 16),
+          ],
+        ),
+        const SizedBox(height: 24),
+        for (var section = 0; section < 3; section++)
+          Padding(
+            padding: EdgeInsets.only(top: section == 0 ? 0 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Skeleton(width: 160, height: 24, borderRadius: 16),
+                const SizedBox(height: 12),
+                for (var item = 0; item < 2; item++)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: item == 1 ? 0 : 12),
+                    child: const Skeleton(height: 120, borderRadius: 24),
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -231,6 +297,12 @@ class _CatalogPageState extends State<CatalogPage> {
     _prefsService?.saveSearchFilters(filters.toMap());
     _resultsNotifier.value =
         SearchRepository.search(query: _query, filters: filters);
+  }
+
+  Future<void> _handleRefresh() async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    _resultsNotifier.value =
+        SearchRepository.search(query: _query, filters: _filters);
   }
 
   void _openEntry(SearchEntry entry) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/prefs/prefs_service.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/utils/skeleton.dart';
 import 'package:travelmate/features/home/explore_mock_data.dart';
 import 'package:travelmate/features/place/models/explore_place.dart';
 
@@ -75,56 +76,109 @@ class _SearchPageState extends State<SearchPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSearchBar(theme, localizations),
-                  const SizedBox(height: 16),
-                  _buildScopeChips(theme, localizations),
-                  if (_history.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: _buildHistoryRow(theme, localizations),
+          ? _buildLoadingSkeleton()
+          : ValueListenableBuilder<List<SearchEntry>>(
+              valueListenable: _resultsNotifier,
+              builder: (context, results, _) {
+                return RefreshIndicator(
+                  onRefresh: _handleRefresh,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
                     ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ValueListenableBuilder<List<SearchEntry>>(
-                      valueListenable: _resultsNotifier,
-                      builder: (context, results, _) {
-                        if (results.isEmpty) {
-                          return Center(
-                            child: GlassSurface(
-                              padding: const EdgeInsets.all(24),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Text(
-                                localizations.translate('searchEmptyState'),
-                                style: theme.textTheme.titleMedium,
-                                textAlign: TextAlign.center,
+                    slivers: [
+                      SliverPadding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSearchBar(theme, localizations),
+                              const SizedBox(height: 16),
+                              _buildScopeChips(theme, localizations),
+                              if (_history.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                _buildHistoryRow(theme, localizations),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (results.isEmpty)
+                        SliverPadding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                          sliver: SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: GlassSurface(
+                                padding: const EdgeInsets.all(24),
+                                borderRadius: BorderRadius.circular(24),
+                                child: Text(
+                                  localizations.translate('searchEmptyState'),
+                                  style: theme.textTheme.titleMedium,
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             ),
-                          );
-                        }
-                        return ListView.separated(
-                          itemCount: results.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 16),
-                          itemBuilder: (context, index) {
-                            final entry = results[index];
-                            return SearchResultCard(
-                              entry: entry,
-                              localizations: localizations,
-                              onTap: () => _openEntry(entry),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final entry = results[index];
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: index == results.length - 1 ? 0 : 16,
+                                  ),
+                                  child: SearchResultCard(
+                                    entry: entry,
+                                    localizations: localizations,
+                                    onTap: () => _openEntry(entry),
+                                  ),
+                                );
+                              },
+                              childCount: results.length,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      children: [
+        const Skeleton(height: 56, borderRadius: 24),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: const [
+            Skeleton(width: 96, height: 36, borderRadius: 18),
+            Skeleton(width: 104, height: 36, borderRadius: 18),
+            Skeleton(width: 120, height: 36, borderRadius: 18),
+          ],
+        ),
+        const SizedBox(height: 24),
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == 5 ? 0 : 16),
+            child: const Skeleton(height: 120, borderRadius: 24),
+          ),
+      ],
     );
   }
 
@@ -156,6 +210,12 @@ class _SearchPageState extends State<SearchPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleRefresh() async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    _resultsNotifier.value =
+        SearchRepository.search(query: _query, filters: _filters);
   }
 
   Widget _buildScopeChips(ThemeData theme, AppLocalizations localizations) {
