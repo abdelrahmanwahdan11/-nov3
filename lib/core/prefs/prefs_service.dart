@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +18,7 @@ class PrefsService {
   static const _planBudgetMinKey = 'plan_budget_min';
   static const _planBudgetMaxKey = 'plan_budget_max';
   static const _planStylesKey = 'plan_styles';
+  static const _journalEntriesKey = 'journal_entries';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -142,5 +145,35 @@ class PrefsService {
       return;
     }
     await _prefs.setStringList(_planStylesKey, values);
+  }
+
+  List<Map<String, dynamic>> loadJournalEntries() {
+    final jsonString = _prefs.getString(_journalEntriesKey);
+    if (jsonString == null || jsonString.isEmpty) {
+      return <Map<String, dynamic>>[];
+    }
+    try {
+      final decoded = json.decode(jsonString);
+      if (decoded is! List) {
+        return <Map<String, dynamic>>[];
+      }
+      return decoded.map<Map<String, dynamic>>((dynamic item) {
+        if (item is Map<String, dynamic>) {
+          return item;
+        }
+        if (item is Map) {
+          return item.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+        }
+        return <String, dynamic>{};
+      }).toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> saveJournalEntries(List<Map<String, dynamic>> values) async {
+    await _prefs.setString(_journalEntriesKey, json.encode(values));
   }
 }
