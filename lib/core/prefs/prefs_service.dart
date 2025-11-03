@@ -19,6 +19,8 @@ class PrefsService {
   static const _planBudgetMaxKey = 'plan_budget_max';
   static const _planStylesKey = 'plan_styles';
   static const _journalEntriesKey = 'journal_entries';
+  static const _searchFiltersKey = 'search_filters';
+  static const _searchHistoryKey = 'search_history';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -175,5 +177,45 @@ class PrefsService {
 
   Future<void> saveJournalEntries(List<Map<String, dynamic>> values) async {
     await _prefs.setString(_journalEntriesKey, json.encode(values));
+  }
+
+  Map<String, dynamic>? loadSearchFilters() {
+    final jsonString = _prefs.getString(_searchFiltersKey);
+    if (jsonString == null || jsonString.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = json.decode(jsonString);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return decoded.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<void> saveSearchFilters(Map<String, dynamic> map) async {
+    await _prefs.setString(_searchFiltersKey, json.encode(map));
+  }
+
+  List<String> loadSearchHistory() {
+    return _prefs.getStringList(_searchHistoryKey) ?? <String>[];
+  }
+
+  Future<void> saveSearchHistory(List<String> values) async {
+    await _prefs.setStringList(
+      _searchHistoryKey,
+      values.take(10).toList(),
+    );
+  }
+
+  Future<void> clearSearchHistory() async {
+    await _prefs.remove(_searchHistoryKey);
   }
 }

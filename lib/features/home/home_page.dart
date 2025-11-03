@@ -7,6 +7,7 @@ import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/theme/theme.dart';
 import 'package:travelmate/core/utils/pagination_mixin.dart';
 import 'package:travelmate/core/utils/skeleton.dart';
+import 'package:travelmate/features/home/explore_mock_data.dart';
 import 'package:travelmate/features/place/models/explore_place.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,174 +19,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   static const _categories = <String>['Must-See', 'Hidden Gem', 'Food & Café'];
-
-  static const List<ExplorePlace> _mockPlaces = [
-    ExplorePlace(
-      id: 'aurora-cliffs',
-      title: 'Aurora Cliffs',
-      subtitle: 'Sun-drenched canyon lookout',
-      description:
-          'Hike the sandstone ridge for a sunrise panorama over ancient rock formations and hidden valleys.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-      category: 'Must-See',
-      location: 'AlUla, Saudi Arabia',
-      distanceText: '3.2 km',
-      rating: 4.9,
-      tags: ['hero', 'ai'],
-    ),
-    ExplorePlace(
-      id: 'floating-garden',
-      title: 'Floating Garden',
-      subtitle: 'Glass observatory above the oasis',
-      description:
-          'Ride the sky elevator to a suspended botanical garden with curated exhibits and soft ambient music.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80',
-      category: 'Must-See',
-      location: 'Riyadh, Saudi Arabia',
-      distanceText: '8.5 km',
-      rating: 4.8,
-      tags: ['ai'],
-    ),
-    ExplorePlace(
-      id: 'midnight-souk',
-      title: 'Midnight Souk',
-      subtitle: 'Lantern-lit artisan market',
-      description:
-          'Discover handwoven textiles, oud fragrances, and street performances after dusk in a tucked-away market.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1520357456838-1d93c1f0840d?auto=format&fit=crop&w=1200&q=80',
-      category: 'Hidden Gem',
-      location: 'Jeddah, Saudi Arabia',
-      distanceText: '2.1 km',
-      rating: 4.7,
-      tags: ['hidden'],
-    ),
-    ExplorePlace(
-      id: 'whispering-dunes',
-      title: 'Whispering Dunes',
-      subtitle: 'Soundscape desert trek',
-      description:
-          'Guided evening walk where shifting dunes create natural melodies amplified by gentle desert winds.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1500530855697-5fce5f43d0d2?auto=format&fit=crop&w=1200&q=80',
-      category: 'Hidden Gem',
-      location: 'Empty Quarter, Saudi Arabia',
-      distanceText: '42 km',
-      rating: 4.6,
-      tags: ['hidden', 'ai'],
-    ),
-    ExplorePlace(
-      id: 'artisan-roastery',
-      title: 'Artisan Roastery',
-      subtitle: 'Slow-brew micro café',
-      description:
-          'Sip experimental blends crafted with single-origin beans while learning roasting techniques from baristas.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
-      category: 'Food & Café',
-      location: 'Diriyah, Saudi Arabia',
-      distanceText: '5.4 km',
-      rating: 4.5,
-      tags: ['ai'],
-    ),
-    ExplorePlace(
-      id: 'sky-terrace',
-      title: 'Sky Terrace',
-      subtitle: 'City skyline sunset deck',
-      description:
-          'Chill on a terraced rooftop with live oud sessions as the city lights flicker to life beneath you.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80',
-      category: 'Must-See',
-      location: 'Khobar, Saudi Arabia',
-      distanceText: '11 km',
-      rating: 4.4,
-    ),
-    ExplorePlace(
-      id: 'cinnamon-harbor',
-      title: 'Cinnamon Harbor',
-      subtitle: 'Floating spice kitchen',
-      description:
-          'Taste aromatic stews simmering on dhow boats while storytellers share seafaring tales.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1200&q=80',
-      category: 'Food & Café',
-      location: 'Al Bahah, Saudi Arabia',
-      distanceText: '18 km',
-      rating: 4.3,
-    ),
-    ExplorePlace(
-      id: 'emerald-oasis',
-      title: 'Emerald Oasis',
-      subtitle: 'Hidden canyon lagoon',
-      description:
-          'Swim beneath natural waterfalls surrounded by palm groves and luminous limestone walls.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1200&q=80',
-      category: 'Must-See',
-      location: 'Najran, Saudi Arabia',
-      distanceText: '65 km',
-      rating: 4.8,
-      tags: ['ai'],
-    ),
-    ExplorePlace(
-      id: 'desert-library',
-      title: 'Desert Library',
-      subtitle: 'Nomadic pop-up book lounge',
-      description:
-          'Borrow limited-edition travelogues in a linen tent with mint tea service and ambient oud playlists.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1477346611705-65d1883cee1e?auto=format&fit=crop&w=1200&q=80',
-      category: 'Hidden Gem',
-      location: 'Hail, Saudi Arabia',
-      distanceText: '24 km',
-      rating: 4.6,
-      tags: ['hidden'],
-    ),
-    ExplorePlace(
-      id: 'lagoon-market',
-      title: 'Lagoon Market',
-      subtitle: 'Waterfront tasting trail',
-      description:
-          'Sample chef-led tasting menus as you stroll beside mirrored waters lit with floating lanterns.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1498654200943-1088dd4438ae?auto=format&fit=crop&w=1200&q=80',
-      category: 'Food & Café',
-      location: 'Jazan, Saudi Arabia',
-      distanceText: '14 km',
-      rating: 4.2,
-    ),
-    ExplorePlace(
-      id: 'crystal-cavern',
-      title: 'Crystal Cavern',
-      subtitle: 'Glowworm-lit underground lake',
-      description:
-          'Kayak silently through a cavern where bioluminescent crystals reflect on still waters.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1464820453369-31d2c0b651af?auto=format&fit=crop&w=1200&q=80',
-      category: 'Hidden Gem',
-      location: 'Tabuk, Saudi Arabia',
-      distanceText: '71 km',
-      rating: 4.9,
-      tags: ['hidden', 'ai'],
-    ),
-    ExplorePlace(
-      id: 'luminous-steps',
-      title: 'Luminous Steps',
-      subtitle: 'Night-lit mountain trail',
-      description:
-          'Follow illuminated pathways up the ridge for stargazing pods and interactive constellation stories.',
-      imageUrl:
-          'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
-      category: 'Must-See',
-      location: 'Abha, Saudi Arabia',
-      distanceText: '33 km',
-      rating: 4.7,
-      tags: ['ai'],
-    ),
-  ];
 
   final List<ExplorePlace> _visiblePlaces = <ExplorePlace>[];
   String _selectedCategory = _categories.first;
@@ -202,15 +35,17 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
     });
   }
 
-  List<ExplorePlace> get _filteredPlaces => _mockPlaces
+  List<ExplorePlace> get _filteredPlaces => ExploreMockData.places
       .where((place) => place.category == _selectedCategory)
       .toList();
 
   List<ExplorePlace> get _aiRoutePlaces =>
-      _mockPlaces.where((place) => place.isAiCurated).toList();
+      ExploreMockData.places.where((place) => place.isAiCurated).toList();
 
   List<ExplorePlace> get _hiddenGemPlaces =>
-      _mockPlaces.where((place) => place.category == 'Hidden Gem').toList();
+      ExploreMockData.places
+          .where((place) => place.category == 'Hidden Gem')
+          .toList();
 
   ExplorePlace? get _heroPlace {
     return _visiblePlaces.isNotEmpty
@@ -283,7 +118,7 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       context: context,
       delegate: ExploreSearchDelegate(
         localizations: localizations,
-        places: _mockPlaces,
+        places: ExploreMockData.places,
       ),
     );
     if (result != null) {
