@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:travelmate/core/prefs/prefs_service.dart';
 
+/// Default palette identifier used when no persisted value exists.
+const String _kDefaultAccentPaletteId = 'aurora';
+
 typedef LocaleChangedCallback = void Function(Locale locale);
 
 class AppController extends ChangeNotifier {
@@ -20,6 +23,7 @@ class AppController extends ChangeNotifier {
   bool _isGuest = false;
   Set<String> _savedPlaceIds = <String>{};
   bool _hasSeenCoachMarks = false;
+  String _accentPaletteId = _kDefaultAccentPaletteId;
 
   ThemeMode get themeMode => _themeMode;
   Color get primaryColor => _primaryColor;
@@ -28,6 +32,7 @@ class AppController extends ChangeNotifier {
   bool get isGuest => _isGuest;
   Set<String> get savedPlaceIds => _savedPlaceIds;
   bool get hasSeenCoachMarks => _hasSeenCoachMarks;
+  String get accentPaletteId => _accentPaletteId;
 
   PrefsService get prefsService => _prefsService;
 
@@ -41,6 +46,8 @@ class AppController extends ChangeNotifier {
     _isGuest = _prefsService.loadGuestMode();
     _savedPlaceIds = _prefsService.loadSavedPlaceIds();
     _hasSeenCoachMarks = _prefsService.loadHasSeenCoachMarks();
+    _accentPaletteId =
+        _prefsService.loadAccentPaletteId() ?? _accentPaletteId;
     notifyListeners();
   }
 
@@ -100,6 +107,15 @@ class AppController extends ChangeNotifier {
     }
     _hasSeenCoachMarks = value;
     await _prefsService.saveHasSeenCoachMarks(value);
+    notifyListeners();
+  }
+
+  Future<void> updateAccentPalette(String id) async {
+    if (id.isEmpty || _accentPaletteId == id) {
+      return;
+    }
+    _accentPaletteId = id;
+    await _prefsService.saveAccentPaletteId(id);
     notifyListeners();
   }
 

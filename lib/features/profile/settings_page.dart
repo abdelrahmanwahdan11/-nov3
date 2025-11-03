@@ -3,7 +3,9 @@ import 'package:iconly/iconly.dart';
 
 import 'package:travelmate/core/controllers/app_controller.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
+import 'package:travelmate/core/theme/palettes.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/widgets/atoms/animated_gradient_card.dart';
 import 'package:travelmate/core/widgets/molecules/primary_color_picker.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -123,6 +125,69 @@ class SettingsPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  localizations.translate('settingsAccentSection'),
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  localizations.translate('settingsAccentDescription'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: AccentPalettes.palettes.map((palette) {
+                    final isSelected = controller.accentPaletteId == palette.id;
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => controller.updateAccentPalette(palette.id),
+                      child: AnimatedGradientCard(
+                        key: ValueKey<String>('accent_${palette.id}'),
+                        colors: palette.colors,
+                        height: 96,
+                        borderRadius: 24,
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isSelected
+                                      ? Icons.check_circle_rounded
+                                      : Icons.circle_outlined,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  localizations.translate(palette.titleKey),
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            Text(
+                              localizations.translate('settingsAccentAction'),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: Colors.white.withOpacity(0.86),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
             ),

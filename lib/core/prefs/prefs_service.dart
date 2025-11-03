@@ -25,6 +25,7 @@ class PrefsService {
   static const _compareSelectedCarsKey = 'compare_selected_cars';
   static const _compareFiltersKey = 'compare_filters';
   static const _savedPlaceIdsKey = 'saved_place_ids';
+  static const _accentPaletteKey = 'accent_palette';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -275,5 +276,13 @@ class PrefsService {
   Future<void> saveSavedPlaceIds(Iterable<String> ids) async {
     final unique = ids.toSet().toList()..sort();
     await _prefs.setStringList(_savedPlaceIdsKey, unique);
+  }
+
+  String? loadAccentPaletteId() {
+    return _prefs.getString(_accentPaletteKey);
+  }
+
+  Future<void> saveAccentPaletteId(String id) async {
+    await _prefs.setString(_accentPaletteKey, id);
   }
 }

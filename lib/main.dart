@@ -6,6 +6,7 @@ import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/prefs/prefs_service.dart';
 import 'package:travelmate/core/routes/app_router.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/theme/palettes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,8 +35,12 @@ class TravelmateApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        final appTheme =
-            AppTheme(primaryColor: controller.primaryColor, locale: controller.locale);
+        final palette = AccentPalettes.resolve(controller.accentPaletteId);
+        final appTheme = AppTheme(
+          primaryColor: controller.primaryColor,
+          locale: controller.locale,
+          accentPalette: palette,
+        );
         return MaterialApp(
           title: 'Travelmate',
           debugShowCheckedModeBanner: false,
@@ -63,7 +68,7 @@ class TravelmateApp extends StatelessWidget {
           navigatorKey: AppRouter.instance.navigatorKey,
           initialRoute: controller.initialRoute,
           onGenerateRoute: AppRouter.instance.onGenerateRoute,
-          routes: AppRouter.routes,
+          onUnknownRoute: AppRouter.instance.onUnknownRoute,
         );
       },
     );

@@ -4,21 +4,29 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:travelmate/core/theme/color_scheme.dart';
+import 'package:travelmate/core/theme/palettes.dart';
 
 class AppTheme {
-  AppTheme({required this.primaryColor, required this.locale});
+  AppTheme({
+    required this.primaryColor,
+    required this.locale,
+    required this.accentPalette,
+  });
 
   final Color primaryColor;
   final Locale locale;
+  final AccentPalette accentPalette;
 
   ThemeData light() => _createTheme(Brightness.light);
 
   ThemeData dark() => _createTheme(Brightness.dark);
 
   ThemeData _createTheme(Brightness brightness) {
+    final accentPrimary =
+        Color.lerp(primaryColor, accentPalette.blendColor, 0.35) ?? primaryColor;
     final colorScheme = brightness == Brightness.light
-        ? AppColorSchemes.light(primaryColor)
-        : AppColorSchemes.dark(primaryColor);
+        ? AppColorSchemes.light(accentPrimary)
+        : AppColorSchemes.dark(accentPrimary);
     final textTheme = _typography(brightness);
 
     final base = ThemeData(
@@ -30,12 +38,20 @@ class AppTheme {
     );
 
     final surfaceTintOpacity = brightness == Brightness.light ? 0.12 : 0.2;
-    final glassColor = colorScheme.surface.withOpacity(
-      brightness == Brightness.light ? 0.85 : 0.35,
+    final glassColor = Color.alphaBlend(
+      accentPalette.blendColor.withOpacity(
+        brightness == Brightness.light ? 0.08 : 0.14,
+      ),
+      colorScheme.surface.withOpacity(brightness == Brightness.light ? 0.85 : 0.35),
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: colorScheme.surface,
+      scaffoldBackgroundColor: Color.alphaBlend(
+        accentPalette.blendColor.withOpacity(
+          brightness == Brightness.light ? 0.04 : 0.12,
+        ),
+        colorScheme.surface,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: glassColor,
         foregroundColor: colorScheme.onSurface,
@@ -110,6 +126,9 @@ class AppTheme {
       iconTheme: base.iconTheme.copyWith(color: colorScheme.onSurface),
       dividerColor: colorScheme.outline.withOpacity(0.3),
       splashFactory: InkSparkle.splashFactory,
+      extensions: <ThemeExtension<dynamic>>[
+        AccentGradientTheme(colors: accentPalette.colors),
+      ],
     );
   }
 
@@ -157,6 +176,37 @@ class AppTheme {
         color: baseColor,
       ),
     );
+  }
+}
+
+class AccentGradientTheme extends ThemeExtension<AccentGradientTheme> {
+  const AccentGradientTheme({required this.colors});
+
+  final List<Color> colors;
+
+  @override
+  AccentGradientTheme copyWith({List<Color>? colors}) {
+    return AccentGradientTheme(colors: colors ?? this.colors);
+  }
+
+  @override
+  ThemeExtension<AccentGradientTheme> lerp(
+    ThemeExtension<AccentGradientTheme>? other,
+    double t,
+  ) {
+    if (other is! AccentGradientTheme) {
+      return this;
+    }
+    final length = colors.length;
+    final targetLength = other.colors.length;
+    final maxLength = length > targetLength ? length : targetLength;
+    final blended = <Color>[];
+    for (var i = 0; i < maxLength; i++) {
+      final from = colors[i % length];
+      final to = other.colors[i % targetLength];
+      blended.add(Color.lerp(from, to, t) ?? from);
+    }
+    return AccentGradientTheme(colors: blended);
   }
 }
 

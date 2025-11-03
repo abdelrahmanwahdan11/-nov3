@@ -6,9 +6,11 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 import 'package:travelmate/core/controllers/app_controller.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
+import 'package:travelmate/core/theme/palettes.dart';
 import 'package:travelmate/core/theme/theme.dart';
 import 'package:travelmate/core/utils/pagination_mixin.dart';
 import 'package:travelmate/core/utils/skeleton.dart';
+import 'package:travelmate/core/widgets/atoms/animated_gradient_card.dart';
 import 'package:travelmate/core/widgets/atoms/staggered_slide_fade.dart';
 import 'package:travelmate/features/home/explore_mock_data.dart';
 import 'package:travelmate/features/home/widgets/explore_three_d_card.dart';
@@ -253,6 +255,8 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildAtmosphereBanner(theme, localizations),
+                    const SizedBox(height: 24),
                     _buildSearchBar(theme, localizations),
                     const SizedBox(height: 16),
                     _buildCategoryChips(theme, localizations),
@@ -360,6 +364,80 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
             onPressed: () => _openFilters(localizations),
             tooltip: localizations.translate('homeFilterTooltip'),
             icon: Icon(Icons.tune_rounded, color: filterColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAtmosphereBanner(
+      ThemeData theme, AppLocalizations localizations) {
+    final controller = AppControllerScope.of(context);
+    final palette = AccentPalettes.resolve(controller.accentPaletteId);
+    final accent = theme.extension<AccentGradientTheme>();
+    final colors = accent?.colors ?? palette.colors;
+
+    return AnimatedGradientCard(
+      colors: colors,
+      height: 156,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            localizations.translate('homeAtmosphereTitle'),
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            localizations.translate('homeAtmosphereSubtitle'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withOpacity(0.86),
+            ),
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  localizations.translate(palette.titleKey),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  backgroundColor: Colors.white.withOpacity(0.12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pushNamed('/settings'),
+                icon: const Icon(Icons.palette_outlined, size: 18),
+                label: Text(
+                  localizations.translate('homeAtmosphereAction'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
