@@ -11,6 +11,11 @@ class PrefsService {
   static const _localeKey = 'locale_code';
   static const _hasOnboardedKey = 'has_onboarded';
   static const _guestModeKey = 'auth_guest';
+  static const _planDestinationKey = 'plan_destination';
+  static const _planWeekdaysKey = 'plan_weekdays';
+  static const _planBudgetMinKey = 'plan_budget_min';
+  static const _planBudgetMaxKey = 'plan_budget_max';
+  static const _planStylesKey = 'plan_styles';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -77,5 +82,65 @@ class PrefsService {
     if (_guestModeKey != 'guest_mode') {
       await _prefs.remove('guest_mode');
     }
+  }
+
+  String? loadPlanDestination() {
+    return _prefs.getString(_planDestinationKey);
+  }
+
+  Future<void> savePlanDestination(String? value) async {
+    if (value == null || value.isEmpty) {
+      await _prefs.remove(_planDestinationKey);
+      return;
+    }
+    await _prefs.setString(_planDestinationKey, value);
+  }
+
+  List<int> loadPlanWeekdays() {
+    final stored = _prefs.getStringList(_planWeekdaysKey);
+    if (stored == null) {
+      return <int>[];
+    }
+    return stored
+        .map((value) => int.tryParse(value))
+        .whereType<int>()
+        .toList();
+  }
+
+  Future<void> savePlanWeekdays(List<int> values) async {
+    if (values.isEmpty) {
+      await _prefs.remove(_planWeekdaysKey);
+      return;
+    }
+    await _prefs.setStringList(
+      _planWeekdaysKey,
+      values.map((value) => value.toString()).toList(),
+    );
+  }
+
+  RangeValues loadPlanBudgetRange() {
+    final start = _prefs.getDouble(_planBudgetMinKey);
+    final end = _prefs.getDouble(_planBudgetMaxKey);
+    if (start != null && end != null) {
+      return RangeValues(start, end);
+    }
+    return const RangeValues(600, 2200);
+  }
+
+  Future<void> savePlanBudgetRange(RangeValues values) async {
+    await _prefs.setDouble(_planBudgetMinKey, values.start);
+    await _prefs.setDouble(_planBudgetMaxKey, values.end);
+  }
+
+  List<String> loadPlanStyles() {
+    return _prefs.getStringList(_planStylesKey) ?? <String>[];
+  }
+
+  Future<void> savePlanStyles(List<String> values) async {
+    if (values.isEmpty) {
+      await _prefs.remove(_planStylesKey);
+      return;
+    }
+    await _prefs.setStringList(_planStylesKey, values);
   }
 }

@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 
 import 'package:travelmate/features/auth/forgot_password_page.dart';
@@ -9,7 +10,9 @@ import 'package:travelmate/features/home/home_page.dart';
 import 'package:travelmate/features/journal/journal_page.dart';
 import 'package:travelmate/features/onboarding/onboarding_page.dart';
 import 'package:travelmate/features/place/place_page.dart';
+import 'package:travelmate/features/plan/plan_models.dart';
 import 'package:travelmate/features/plan/plan_page.dart';
+import 'package:travelmate/features/plan/plan_summary_page.dart';
 import 'package:travelmate/features/profile/profile_page.dart';
 import 'package:travelmate/features/profile/settings_page.dart';
 import 'package:travelmate/features/search/search_page.dart';
@@ -23,6 +26,31 @@ class AppRouter {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    if (settings.name == '/plan/summary') {
+      final arguments = settings.arguments;
+      if (arguments is! TravelPlanSummaryArgs) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => const PlanPage(),
+        );
+      }
+      return PageRouteBuilder<void>(
+        settings: settings,
+        transitionDuration: const Duration(milliseconds: 450),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return PlanSummaryPage(args: arguments);
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            transitionType: SharedAxisTransitionType.vertical,
+            child: child,
+          );
+        },
+      );
+    }
     final builder = routes[settings.name];
     if (builder == null) {
       return MaterialPageRoute<void>(
