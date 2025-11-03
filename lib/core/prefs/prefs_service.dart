@@ -10,7 +10,7 @@ class PrefsService {
   static const _primaryColorKey = 'primary_color';
   static const _localeKey = 'locale_code';
   static const _hasOnboardedKey = 'has_onboarded';
-  static const _guestModeKey = 'guest_mode';
+  static const _guestModeKey = 'auth_guest';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,10 +67,15 @@ class PrefsService {
   }
 
   bool loadGuestMode() {
-    return _prefs.getBool(_guestModeKey) ?? false;
+    return _prefs.getBool(_guestModeKey) ??
+        _prefs.getBool('guest_mode') ??
+        false;
   }
 
   Future<void> saveGuestMode(bool value) async {
     await _prefs.setBool(_guestModeKey, value);
+    if (_guestModeKey != 'guest_mode') {
+      await _prefs.remove('guest_mode');
+    }
   }
 }
