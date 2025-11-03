@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/prefs/prefs_service.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/utils/image_prefetch_mixin.dart';
 import 'package:travelmate/core/utils/pagination_mixin.dart';
 import 'package:travelmate/core/utils/skeleton.dart';
 import 'package:travelmate/features/compare_cars/car_models.dart';
@@ -21,7 +22,7 @@ class CompareCarsPage extends StatefulWidget {
 }
 
 class _CompareCarsPageState extends State<CompareCarsPage>
-    with PaginationMixin<CompareCarsPage> {
+    with PaginationMixin<CompareCarsPage>, ImagePrefetchMixin<CompareCarsPage> {
   final ValueNotifier<List<CompareCar>> _carsNotifier =
       ValueNotifier<List<CompareCar>>(<CompareCar>[]);
   final ValueNotifier<Set<String>> _selectedNotifier =
@@ -74,14 +75,15 @@ class _CompareCarsPageState extends State<CompareCarsPage>
   }
 
   @override
-  Future<void> loadInitial() async {
+  Future<void> loadInitial({required int generation}) async {
+    resetPrefetchedImages();
     final cars = await CompareCarRepository.fetchCars(
       page: 1,
       pageSize: pageSize,
       query: _query,
       filters: _filters,
     );
-    if (!mounted) {
+    if (!mounted || !isActiveGeneration(generation)) {
       return;
     }
     _cars = cars;
@@ -91,17 +93,18 @@ class _CompareCarsPageState extends State<CompareCarsPage>
       page = 1;
       _isLoading = false;
     });
+    prefetchImages(cars.map((car) => car.imageUrl));
   }
 
   @override
-  Future<void> loadMore(int nextPage) async {
+  Future<void> loadMore({required int nextPage, required int generation}) async {
     final cars = await CompareCarRepository.fetchCars(
       page: nextPage,
       pageSize: pageSize,
       query: _query,
       filters: _filters,
     );
-    if (!mounted) {
+    if (!mounted || !isActiveGeneration(generation)) {
       return;
     }
     if (cars.isEmpty) {
@@ -110,6 +113,7 @@ class _CompareCarsPageState extends State<CompareCarsPage>
       });
       return;
     }
+    prefetchImages(cars.map((car) => car.imageUrl));
     _cars.addAll(cars);
     _carsNotifier.value = List<CompareCar>.from(_cars);
     setState(() {
@@ -241,27 +245,24 @@ class _CompareCarsPageState extends State<CompareCarsPage>
               SliverPadding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: GlassSurface(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Skeleton(height: 180, borderRadius: 20),
-                              SizedBox(height: 16),
-                              Skeleton(width: 160, height: 20),
-                              SizedBox(height: 8),
-                              Skeleton(width: 220, height: 16),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    childCount: 4,
-                  ),
+                sliver: SkeletonList.vertical(
+                  sliver: true,
+                  itemCount: 4,
+                  gap: 16,
+                  builder: (context, index) {
+                    return GlassSurface(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Skeleton(height: 180, borderRadius: 20),
+                          SizedBox(height: 16),
+                          Skeleton(width: 160, height: 20),
+                          SizedBox(height: 8),
+                          Skeleton(width: 220, height: 16),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               )
             else
@@ -292,13 +293,6 @@ class _CompareCarsPageState extends State<CompareCarsPage>
                         sliver: SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
-                              if (index >= cars.length) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child:
-                                      Center(child: CircularProgressIndicator()),
-                                );
-                              }
                               final car = cars[index];
                               final isSelected = selected.contains(car.id);
                               return Padding(
@@ -311,13 +305,18 @@ class _CompareCarsPageState extends State<CompareCarsPage>
                                 ),
                               );
                             },
-                            childCount: cars.length + (hasMore ? 1 : 0),
+                            childCount: cars.length,
                           ),
                         ),
                       );
                     },
                   );
                 },
+              ),
+            if (!_isLoading)
+              buildPaginationFooter(
+                context,
+                padding: const EdgeInsets.symmetric(vertical: 24),
               ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flip_card/flip_card.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
@@ -8,6 +9,7 @@ import 'package:travelmate/core/controllers/app_controller.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/theme/palettes.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/utils/image_prefetch_mixin.dart';
 import 'package:travelmate/core/utils/pagination_mixin.dart';
 import 'package:travelmate/core/utils/skeleton.dart';
 import 'package:travelmate/core/widgets/atoms/animated_gradient_card.dart';
@@ -25,7 +27,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
+class _HomePageState extends State<HomePage>
+    with PaginationMixin<HomePage>, ImagePrefetchMixin<HomePage> {
   static const _categories = <String>['Must-See', 'Hidden Gem', 'Food & Café'];
 
   final List<ExplorePlace> _visiblePlaces = <ExplorePlace>[];
@@ -34,6 +37,7 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   SearchFilters _filters = const SearchFilters();
   TutorialCoachMark? _coachMark;
   bool _tutorialQueued = false;
+  bool _prefetchedOnScroll = false;
 
   final GlobalKey _searchActionKey = GlobalKey();
   final GlobalKey _filterButtonKey = GlobalKey();
@@ -52,6 +56,7 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   @override
   void initState() {
     super.initState();
+    scrollController.addListener(_handleFirstScrollPrefetch);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = AppControllerScope.of(context);
       final storedFilters = SearchFilters.fromMap(
@@ -62,8 +67,16 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
           _filters = storedFilters;
         });
       }
-      await loadInitial();
+      final generation = startNewLoadCycle();
+      await loadInitial(generation: generation);
     });
+  }
+
+  @override
+  void dispose() {
+    scrollController.removeListener(_handleFirstScrollPrefetch);
+    _coachMark?.finish();
+    super.dispose();
   }
 
   List<ExplorePlace> get _filteredPlaces {
@@ -120,13 +133,19 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
   }
 
   @override
-  Future<void> loadInitial() async {
-    setState(() {
+  Future<void> loadInitial({required int generation}) async {
+    _prefetchedOnScroll = false;
+    resetPrefetchedImages();
+    if (mounted) {
+      setState(() {
+        _isInitialLoading = true;
+      });
+    } else {
       _isInitialLoading = true;
-    });
+    }
     final filtered = _filteredPlaces;
     await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) {
+    if (!mounted || !isActiveGeneration(generation)) {
       return;
     }
     setState(() {
@@ -137,17 +156,23 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       page = 1;
       _isInitialLoading = false;
     });
+    prefetchImages(_visiblePlaces.map((place) => place.imageUrl));
+    prefetchImages(_aiRoutePlaces.map((place) => place.imageUrl));
+    prefetchImages(_hiddenGemPlaces.map((place) => place.imageUrl));
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !isActiveGeneration(generation)) {
+        return;
+      }
       _maybeShowTutorial();
     });
   }
 
   @override
-  Future<void> loadMore(int nextPage) async {
+  Future<void> loadMore({required int nextPage, required int generation}) async {
     final filtered = _filteredPlaces;
     final start = (nextPage - 1) * pageSize;
     if (start >= filtered.length) {
-      if (mounted) {
+      if (mounted && isActiveGeneration(generation)) {
         setState(() {
           hasMore = false;
         });
@@ -155,14 +180,37 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
       return;
     }
     await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) {
+    if (!mounted || !isActiveGeneration(generation)) {
       return;
     }
     final end = math.min(start + pageSize, filtered.length);
+    final nextBatch = filtered.sublist(start, end);
+    prefetchImages(nextBatch.map((place) => place.imageUrl));
     setState(() {
-      _visiblePlaces.addAll(filtered.sublist(start, end));
+      _visiblePlaces.addAll(nextBatch);
       hasMore = end < filtered.length;
     });
+    if (hasMore) {
+      prefetchImages(filtered
+          .skip(end)
+          .take(pageSize)
+          .map((place) => place.imageUrl));
+    }
+  }
+
+  void _handleFirstScrollPrefetch() {
+    if (_prefetchedOnScroll || !scrollController.hasClients) {
+      return;
+    }
+    if (scrollController.position.userScrollDirection == ScrollDirection.idle) {
+      return;
+    }
+    _prefetchedOnScroll = true;
+    final remaining = _filteredPlaces
+        .skip(_visiblePlaces.length)
+        .take(pageSize * 2)
+        .map((place) => place.imageUrl);
+    prefetchImages(remaining);
   }
 
   Future<void> _handleRefresh() {
@@ -320,6 +368,11 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
               )
             else
               _buildPlacesList(remainingPlaces, theme, localizations),
+            if (!_isInitialLoading)
+              buildPaginationFooter(
+                context,
+                padding: const EdgeInsets.symmetric(vertical: 24),
+              ),
             SliverToBoxAdapter(
               child: SizedBox(
                 height: MediaQuery.of(context).padding.bottom + 24,
@@ -743,9 +796,6 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          if (index >= places.length) {
-            return _buildLoadMoreIndicator();
-          }
           final place = places[index];
           return StaggeredSlideFade(
             index: index,
@@ -825,49 +875,28 @@ class _HomePageState extends State<HomePage> with PaginationMixin<HomePage> {
             ),
           );
         },
-        childCount: places.length + (isLoadingMore ? 1 : 0),
+        childCount: places.length,
       ),
     );
   }
 
   Widget _buildLoadingList() {
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Skeleton(height: 120, borderRadius: 24),
-          );
-        },
-        childCount: 4,
-      ),
-    );
-  }
-
-  Widget _buildLoadMoreIndicator() {
-    if (!hasMore && !isLoadingMore) {
-      return const SizedBox.shrink();
-    }
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 24),
-      child: Center(
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: CircularProgressIndicator(),
-        ),
-      ),
+    return SkeletonList.vertical(
+      sliver: true,
+      itemCount: 4,
+      height: 120,
+      borderRadius: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
     );
   }
 
   Widget _buildHorizontalSkeletons() {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemBuilder: (context, index) {
-        return const Skeleton(width: 200, height: 200, borderRadius: 24);
-      },
-      separatorBuilder: (_, __) => const SizedBox(width: 16),
+    return SkeletonList.horizontal(
       itemCount: 3,
+      width: 200,
+      height: 200,
+      borderRadius: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 0),
     );
   }
 

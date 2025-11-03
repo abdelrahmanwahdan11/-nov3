@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/prefs/prefs_service.dart';
 import 'package:travelmate/core/theme/theme.dart';
+import 'package:travelmate/core/utils/image_prefetch_mixin.dart';
+import 'package:travelmate/core/utils/skeleton.dart';
 import 'package:travelmate/features/journal/journal_models.dart';
 
 class JournalPage extends StatefulWidget {
@@ -13,12 +15,15 @@ class JournalPage extends StatefulWidget {
   State<JournalPage> createState() => _JournalPageState();
 }
 
-class _JournalPageState extends State<JournalPage> {
+class _JournalPageState extends State<JournalPage>
+    with ImagePrefetchMixin<JournalPage> {
   late final ValueNotifier<JournalViewMode> _modeNotifier;
   late final ValueNotifier<List<JournalEntry>> _entriesNotifier;
   late final PageController _storyController;
 
   PrefsService? _prefsService;
+  bool _isLoading = true;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -38,8 +43,18 @@ class _JournalPageState extends State<JournalPage> {
   }
 
   Future<void> _loadEntries() async {
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    } else {
+      _isLoading = true;
+    }
+    resetPrefetchedImages();
+
     final prefs = await PrefsService.getInstance();
-    if (!mounted) {
+    if (!mounted || generation != _loadGeneration) {
       return;
     }
 
@@ -59,10 +74,22 @@ class _JournalPageState extends State<JournalPage> {
           .toList();
     }
 
+    if (!mounted || generation != _loadGeneration) {
+      return;
+    }
+
     setState(() {
       _prefsService = prefs;
-      _entriesNotifier.value = entries;
+      _isLoading = false;
     });
+    _setEntries(entries);
+  }
+
+  void _setEntries(List<JournalEntry> entries) {
+    _entriesNotifier.value = entries;
+    prefetchImages(entries.expand(
+      (entry) => entry.moments.expand((moment) => moment.imageUrls),
+    ));
   }
 
   List<JournalEntry> _seedEntries(AppLocalizations localizations) {
@@ -146,14 +173,14 @@ class _JournalPageState extends State<JournalPage> {
       }
       return current;
     }).toList();
-    _entriesNotifier.value = updated;
+    _setEntries(updated);
     _persistEntries(updated);
   }
 
   void _removeEntry(String id) {
     final updated =
         _entriesNotifier.value.where((entry) => entry.id != id).toList();
-    _entriesNotifier.value = updated;
+    _setEntries(updated);
     _persistEntries(updated);
   }
 
@@ -461,12 +488,12 @@ class _JournalPageState extends State<JournalPage> {
       },
     );
 
-    if (entry == null) {
-      return;
-    }
+  if (entry == null) {
+    return;
+  }
 
-    final updated = <JournalEntry>[entry, ..._entriesNotifier.value];
-    _entriesNotifier.value = updated;
+  final updated = <JournalEntry>[entry, ..._entriesNotifier.value];
+    _setEntries(updated);
     await _persistEntries(updated);
   }
 
@@ -517,63 +544,72 @@ class _JournalPageState extends State<JournalPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: ValueListenableBuilder<List<JournalEntry>>(
-          valueListenable: _entriesNotifier,
-          builder: (context, entries, _) {
-            return ValueListenableBuilder<JournalViewMode>(
-              valueListenable: _modeNotifier,
-              builder: (context, mode, __) {
-                if (entries.isEmpty) {
-                  return Center(
-                    child: GlassSurface(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(
-                        localizations.translate('journalEmptyState'),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
+      body: _isLoading
+          ? SkeletonList.vertical(
+              itemCount: 4,
+              height: 180,
+              borderRadius: 28,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            )
+          : Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: ValueListenableBuilder<List<JournalEntry>>(
+                valueListenable: _entriesNotifier,
+                builder: (context, entries, _) {
+                  return ValueListenableBuilder<JournalViewMode>(
+                    valueListenable: _modeNotifier,
+                    builder: (context, mode, __) {
+                      if (entries.isEmpty) {
+                        return Center(
+                          child: GlassSurface(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              localizations.translate('journalEmptyState'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        );
+                      }
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                        child: mode == JournalViewMode.timeline
+                            ? _TimelineList(
+                                key: const ValueKey('timeline'),
+                                entries: entries,
+                                onToggleSaved: _toggleSaved,
+                                onToggleLiked: _toggleLiked,
+                                onShare: _shareEntry,
+                                onAddPhoto: _promptAddPhoto,
+                                onRemovePhoto: _removePhoto,
+                                entriesNotifier: _entriesNotifier,
+                              )
+                            : _StoryModeView(
+                                key: const ValueKey('story'),
+                                controller: _storyController,
+                                entries: entries,
+                                entriesNotifier: _entriesNotifier,
+                                onToggleSaved: _toggleSaved,
+                                onToggleLiked: _toggleLiked,
+                                onShare: _shareEntry,
+                                onAddPhoto: _promptAddPhoto,
+                                onRemovePhoto: _removePhoto,
+                                onRemoveEntry: _removeEntry,
+                              ),
+                      );
+                    },
                   );
-                }
-                return AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    );
-                  },
-                  child: mode == JournalViewMode.timeline
-                      ? _TimelineList(
-                          key: const ValueKey('timeline'),
-                          entries: entries,
-                          onToggleSaved: _toggleSaved,
-                          onToggleLiked: _toggleLiked,
-                          onShare: _shareEntry,
-                          onAddPhoto: _promptAddPhoto,
-                          onRemovePhoto: _removePhoto,
-                          entriesNotifier: _entriesNotifier,
-                        )
-                      : _StoryModeView(
-                          key: const ValueKey('story'),
-                          controller: _storyController,
-                          entries: entries,
-                          entriesNotifier: _entriesNotifier,
-                          onToggleSaved: _toggleSaved,
-                          onToggleLiked: _toggleLiked,
-                          onShare: _shareEntry,
-                          onAddPhoto: _promptAddPhoto,
-                          onRemovePhoto: _removePhoto,
-                          onRemoveEntry: _removeEntry,
-                        ),
-                );
-              },
-            );
-          },
-        ),
-      ),
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateEntrySheet,
         icon: const Icon(Icons.add),
