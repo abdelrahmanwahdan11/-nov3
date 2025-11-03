@@ -34,7 +34,7 @@
   "showPassword": "إظهار",
   "hidePassword": "إخفاء",
   "forgotPasswordDescription": "أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين.",
-  "homeTitle": "الرئيسية",
+  "homeTitle": "اكتشف",
   "planTitle": "الخطط",
   "journalTitle": "المفكرة",
   "placeTitle": "الأماكن",
@@ -57,5 +57,17 @@
   "resetLinkSent": "تم إرسال رابط الاستعادة إلى بريدك الإلكتروني.",
   "accountCreated": "تم إنشاء الحساب بنجاح.",
   "welcomeBack": "مرحبًا بعودتك!",
-  "guestWelcome": "تم الدخول كضيف."
+  "guestWelcome": "تم الدخول كضيف.",
+  "homeSearchHint": "ابحث عن الوجهات أو المقاهي أو المسارات",
+  "homeSearchTooltip": "بحث عن الوجهات",
+  "sectionAiRoute": "مسار منسق بالذكاء الاصطناعي",
+  "sectionHiddenGems": "جواهر مخفية بالقرب منك",
+  "homeEmptyCategory": "سنضيف تجارب جديدة في هذه الفئة قريبًا.",
+  "homeNoResults": "لا توجد نتائج مطابقة حتى الآن.",
+  "homeViewPlace": "عرض",
+  "homeHiddenGemInsight": "اقلب البطاقة لتعرف سبب حب السكان المحليين لها.",
+  "categoryMustSee": "وجهات لا بد من زيارتها",
+  "categoryHiddenGem": "جوهرة مخفية",
+  "categoryFoodCafe": "طعام ومقاهي",
+  "placeAbout": "عن هذا المكان"
 }

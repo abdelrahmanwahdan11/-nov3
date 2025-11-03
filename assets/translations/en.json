@@ -34,7 +34,7 @@
   "showPassword": "Show",
   "hidePassword": "Hide",
   "forgotPasswordDescription": "Enter your email and we'll send you a reset link.",
-  "homeTitle": "Home",
+  "homeTitle": "Explore",
   "planTitle": "Plans",
   "journalTitle": "Journal",
   "placeTitle": "Places",
@@ -57,5 +57,17 @@
   "resetLinkSent": "A reset link has been sent to your email.",
   "accountCreated": "Account created successfully.",
   "welcomeBack": "Welcome back!",
-  "guestWelcome": "Continuing as guest."
+  "guestWelcome": "Continuing as guest.",
+  "homeSearchHint": "Search destinations, cafés, or routes",
+  "homeSearchTooltip": "Search destinations",
+  "sectionAiRoute": "AI Curated Route",
+  "sectionHiddenGems": "Hidden Gems Nearby",
+  "homeEmptyCategory": "We will surface more experiences in this category soon.",
+  "homeNoResults": "No destinations match your search yet.",
+  "homeViewPlace": "View",
+  "homeHiddenGemInsight": "Tap to reveal why locals love it.",
+  "categoryMustSee": "Must-See",
+  "categoryHiddenGem": "Hidden Gem",
+  "categoryFoodCafe": "Food & Café",
+  "placeAbout": "About this place"
 }
