@@ -23,6 +23,7 @@ class PrefsService {
   static const _searchHistoryKey = 'search_history';
   static const _compareSelectedCarsKey = 'compare_selected_cars';
   static const _compareFiltersKey = 'compare_filters';
+  static const _savedPlaceIdsKey = 'saved_place_ids';
 
   static Future<PrefsService> getInstance() async {
     final prefs = await SharedPreferences.getInstance();
@@ -252,5 +253,18 @@ class PrefsService {
 
   Future<void> saveCompareFilters(Map<String, dynamic> map) async {
     await _prefs.setString(_compareFiltersKey, json.encode(map));
+  }
+
+  Set<String> loadSavedPlaceIds() {
+    final stored = _prefs.getStringList(_savedPlaceIdsKey);
+    if (stored == null) {
+      return <String>{};
+    }
+    return stored.whereType<String>().toSet();
+  }
+
+  Future<void> saveSavedPlaceIds(Iterable<String> ids) async {
+    final unique = ids.toSet().toList()..sort();
+    await _prefs.setStringList(_savedPlaceIdsKey, unique);
   }
 }

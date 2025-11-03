@@ -18,12 +18,16 @@ class AppController extends ChangeNotifier {
   Locale _locale;
   bool _hasOnboarded = false;
   bool _isGuest = false;
+  Set<String> _savedPlaceIds = <String>{};
 
   ThemeMode get themeMode => _themeMode;
   Color get primaryColor => _primaryColor;
   Locale get locale => _locale;
   bool get hasOnboarded => _hasOnboarded;
   bool get isGuest => _isGuest;
+  Set<String> get savedPlaceIds => _savedPlaceIds;
+
+  PrefsService get prefsService => _prefsService;
 
   String get initialRoute => hasOnboarded ? '/home' : '/onboarding';
 
@@ -33,6 +37,7 @@ class AppController extends ChangeNotifier {
     _locale = _prefsService.loadLocale() ?? _locale;
     _hasOnboarded = _prefsService.loadHasOnboarded();
     _isGuest = _prefsService.loadGuestMode();
+    _savedPlaceIds = _prefsService.loadSavedPlaceIds();
     notifyListeners();
   }
 
@@ -84,6 +89,25 @@ class AppController extends ChangeNotifier {
     _isGuest = value;
     await _prefsService.saveGuestMode(value);
     notifyListeners();
+  }
+
+  bool isPlaceSaved(String id) {
+    return _savedPlaceIds.contains(id);
+  }
+
+  Future<void> setPlaceSaved(String id, bool isSaved) async {
+    final updated = <String>{..._savedPlaceIds};
+    final changed = isSaved ? updated.add(id) : updated.remove(id);
+    if (!changed) {
+      return;
+    }
+    _savedPlaceIds = updated;
+    await _prefsService.saveSavedPlaceIds(updated);
+    notifyListeners();
+  }
+
+  Future<void> togglePlaceSaved(String id) {
+    return setPlaceSaved(id, !isPlaceSaved(id));
   }
 }
 

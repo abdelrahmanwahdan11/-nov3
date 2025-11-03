@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flip_card/flip_card.dart';
 import 'package:flutter/material.dart';
 
+import 'package:travelmate/core/controllers/app_controller.dart';
 import 'package:travelmate/core/localization/app_localizations.dart';
 import 'package:travelmate/core/theme/theme.dart';
 import 'package:travelmate/features/place/models/explore_place.dart';
@@ -19,6 +20,7 @@ class _PlacePageState extends State<PlacePage> {
   double _scrollOffset = 0;
   bool _isFavorite = false;
   bool _isFollowing = false;
+  AppController? _controller;
 
   @override
   void initState() {
@@ -27,9 +29,22 @@ class _PlacePageState extends State<PlacePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = AppControllerScope.of(context);
+    if (!identical(_controller, controller)) {
+      _controller?.removeListener(_handleControllerChanged);
+      _controller = controller;
+      _controller?.addListener(_handleControllerChanged);
+    }
+    _syncFavoriteState();
+  }
+
+  @override
   void dispose() {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
+    _controller?.removeListener(_handleControllerChanged);
     super.dispose();
   }
 
@@ -37,6 +52,38 @@ class _PlacePageState extends State<PlacePage> {
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
+  }
+
+  void _handleControllerChanged() {
+    if (!mounted) {
+      return;
+    }
+    _syncFavoriteState();
+  }
+
+  void _syncFavoriteState() {
+    final controller = _controller;
+    final place = ModalRoute.of(context)?.settings.arguments as ExplorePlace?;
+    if (controller == null || place == null) {
+      return;
+    }
+    final isSaved = controller.isPlaceSaved(place.id);
+    if (_isFavorite != isSaved) {
+      setState(() {
+        _isFavorite = isSaved;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite(ExplorePlace place) async {
+    final controller = _controller;
+    final target = !_isFavorite;
+    setState(() {
+      _isFavorite = target;
+    });
+    if (controller != null) {
+      await controller.setPlaceSaved(place.id, target);
+    }
   }
 
   @override
@@ -213,11 +260,7 @@ class _PlacePageState extends State<PlacePage> {
                         ),
                         const SizedBox(width: 16),
                         GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _isFavorite = !_isFavorite;
-                            });
-                          },
+                          onTap: () => _toggleFavorite(place),
                           child: AnimatedScale(
                             scale: _isFavorite ? 1.15 : 1.0,
                             duration: const Duration(milliseconds: 180),
